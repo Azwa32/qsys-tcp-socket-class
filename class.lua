@@ -9,8 +9,6 @@ LICENSE file in the root directory of this source tree.
 -------------------------------------------------------------------------------------
 -- TCP Class --
 -------------------------------------------------------------------------------------
-VERBOSE = false
-
 local TCP = {}
 TCP.__index = TCP
 
@@ -25,7 +23,7 @@ function TCP:new(deviceIp, devicePort, deviceKeepalive)
     reconnecting = false,
     heartbeat = Timer.New(),
     heartbeatTime = 5,
-    verboseDebug = VERBOSE,
+    verboseDebug = false,
     status = {
       states = {
         ok = 0,
