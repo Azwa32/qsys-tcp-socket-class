@@ -100,7 +100,7 @@ function TCP:setupEventHandlers()
     elseif evt == TcpSocket.Events.Data then
         local message = tcp:ReadLine(TcpSocket.EOL.Any)
         if (message ~= nil) and (message ~= '') then
-          if verboseDebug then 
+          if tcpInstance.verboseDebug then 
             print("TCP Received: " .. message)
           end
           tcpInstance.dataCallback(message, tcpInstance)
