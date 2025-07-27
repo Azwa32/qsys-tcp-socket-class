@@ -40,11 +40,7 @@ local base = {
 base.tcp.ReadTimeout = 0
 base.tcp.WriteTimeout = 0
 base.tcp.ReconnectTimeout = 5
-base.status.state = base.status.states.notPresent
-
-if Controls.status then
-    Controls.status.Value = base.status.states.notPresent
-end   
+  
 
 if base.verboseDebug then 
     print("TCP Connection created:")
@@ -55,8 +51,8 @@ end
 
 -- set metatable and return the base settings
 setmetatable(base, TCP) -- describes table behavior
-base:setupEventHandlers()
-return base
+  base:setupEventHandlers()
+  return base
 end
 
 -- Methods
@@ -72,6 +68,8 @@ function TCP:setStatus(mode)
     self.status.state = mode
     if self.statusEvent then
         self.statusEvent(mode, self)
+    else
+      print("self.statusEvent not initialised")
     end
 end
 
@@ -87,74 +85,75 @@ function TCP:sendCommand(cmd)
 end
 
 function TCP:Connect()
-print("TCP connecting to "..self.address..":"..self.port)
-self.tcp:Connect(self.address, self.port)
+  print("TCP connecting to "..self.address..":"..self.port)
+  self:setStatus(self.status.states.initialising)
+  self.tcp:Connect(self.address, self.port)
 end
 
 function TCP:Disconnect()
-print("TCP disconnecting...")
-self.tcp:Disconnect()
+  print("TCP disconnecting...")
+  self.tcp:Disconnect()
 end
 
 function TCP:isConnected()
-return self.tcp.IsConnected
+  return self.tcp.connected
 end
 
 function TCP:setupEventHandlers()
-    local tcpInstance = self  -- Store reference to avoid scope issues  
-    self.tcp.EventHandler = function(tcp, evt, err) --Event Handler for the TCP socket
-        if evt == TcpSocket.Events.Connected then
-            print("socket connected")
-            tcpInstance.heartbeat:Start(tcpInstance.heartbeatTime)  -- start heartbeat timer
-            tcpInstance.connected = true 
-            tcpInstance.reconnecting = false
-            tcpInstance:sendCommand(tcpInstance.keepaliveCmd)
-            tcpInstance:setStatus(tcpInstance.status.states.ok)
-            return
-        elseif evt == TcpSocket.Events.Reconnect then
-            if not tcpInstance.reconnecting or tcpInstance.verboseDebug then
-            print("socket reconnecting...")
-            tcpInstance.connected = false
-            tcpInstance.reconnecting = true
-            tcpInstance:setStatus(tcpInstance.status.states.initialising)
-            end
-        elseif evt == TcpSocket.Events.Data then
-            local message = tcp:ReadLine(TcpSocket.EOL.Any)
-            if (message ~= nil) and (message ~= '') then
-                if tcpInstance.verboseDebug then 
-                    print("TCP Received: " .. message)
-                end
-                if tcpInstance.msgEvent then
-                    tcpInstance.msgEvent(message, tcpInstance)
-                end
-            end
-        elseif evt == TcpSocket.Events.Closed then
-            print("socket closed by remote")
-            tcpInstance:setStatus(tcpInstance.status.states.compromised)
-            tcpInstance.connected = false
-        elseif evt == TcpSocket.Events.Error then
-            tcpInstance:setStatus(tcpInstance.status.states.fault)
-            if tcpInstance.verboseDebug then
-            print("socket error: " .. tostring(err))
-            end
-            tcpInstance.connected = false
-        elseif evt == TcpSocket.Events.Timeout then
-            print("Socket closed due to timeout")
-            tcpInstance:setStatus(tcpInstance.status.states.missing)
-            tcpInstance.connected = false
-        else
-            print("unknown socket event: " .. tostring(evt))
+  local tcpInstance = self  -- Store reference to avoid scope issues  
+  self.tcp.EventHandler = function(tcp, evt, err) --Event Handler for the TCP socket
+    if evt == TcpSocket.Events.Connected then
+      print("socket connected")
+      tcpInstance.heartbeat:Start(tcpInstance.heartbeatTime)  -- start heartbeat timer
+      tcpInstance.connected = true 
+      tcpInstance.reconnecting = false
+      tcpInstance:sendCommand(tcpInstance.keepaliveCmd)
+      tcpInstance:setStatus(tcpInstance.status.states.ok)
+      return
+    elseif evt == TcpSocket.Events.Reconnect then
+      if not tcpInstance.reconnecting or tcpInstance.verboseDebug then
+      print("socket reconnecting...")
+      tcpInstance.reconnecting = true
+      tcpInstance:setStatus(tcpInstance.status.states.initialising)
+      end
+    elseif evt == TcpSocket.Events.Data then
+      local message = tcp:ReadLine(TcpSocket.EOL.Any)
+      if (message ~= nil) and (message ~= '') then
+        if tcpInstance.verboseDebug then 
+          print("TCP Received: " .. message)
         end
+        if tcpInstance.msgEvent then
+          tcpInstance.msgEvent(message, tcpInstance)
+        end
+      end
+    elseif evt == TcpSocket.Events.Closed then
+      print("socket closed by remote")
+      tcpInstance:setStatus(tcpInstance.status.states.compromised)
+    elseif evt == TcpSocket.Events.Error then
+      tcpInstance:setStatus(tcpInstance.status.states.fault)
+      if tcpInstance.verboseDebug then
+      print("socket error: " .. tostring(err))
+      end
+    elseif evt == TcpSocket.Events.Timeout then
+      print("Socket closed due to timeout")
+      tcpInstance:setStatus(tcpInstance.status.states.missing)
+    else
+      print("unknown socket event: " .. tostring(evt))
     end
+    if evt ~= TcpSocket.Events.Connected then
+      tcpInstance.heartbeat:Stop()
+      tcpInstance.connected = false
+    end
+  end
 
-    self.heartbeat.EventHandler = function()
-        if tcpInstance.connected and tcpInstance.keepaliveCmd then
-            tcpInstance:sendCommand(tcpInstance.keepaliveCmd)
-            if tcpInstance.verboseDebug then
-                print("heartbeat sent")
-            end
-        end
+  self.heartbeat.EventHandler = function()
+    if tcpInstance.connected and tcpInstance.keepaliveCmd then
+      tcpInstance:sendCommand(tcpInstance.keepaliveCmd)
+      if tcpInstance.verboseDebug then
+        print("heartbeat sent")
+      end
     end
+  end
 end
 -------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------
